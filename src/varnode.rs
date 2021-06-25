@@ -10,9 +10,11 @@
 // express or implied.  See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::Address;
+use crate::{Address, HighVariable};
 
 pub trait Varnode {
     fn addr<T: Address>(&self) -> &T;
     fn size(&self) -> u32;
+    /// Varnode::getHigh()
+    fn high_var<T: HighVariable>(&self) -> &T;
 }
