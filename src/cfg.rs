@@ -10,10 +10,20 @@
 // express or implied.  See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::Address;
+use crate::PcodeOp;
+use std::collections::HashMap;
 
-#[derive(Debug)]
-pub struct Varnode {
-    pub addr: Address,
-    pub size: u32,
+/// A basic block
+pub struct Block {
+    pub pcodes: Vec<PcodeOp>
+}
+
+/// The control flow graph
+pub struct Cfg {
+    /// all basic blocks
+    pub blocks: Vec<Block>,
+    /// the out edges, from block number (idx in vec) to the vec of block numbers
+    pub outs: HashMap<usize, Vec<usize>>,
+    /// the input edges, from block number (idx in vec) to the vec of block numbers
+    pub ins: HashMap<usize, Vec<usize>>,
 }

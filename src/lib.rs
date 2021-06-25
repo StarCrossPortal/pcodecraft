@@ -12,7 +12,9 @@
 mod addr;
 mod varnode;
 mod pcode;
+mod cfg;
 
 pub use addr::*;
 pub use varnode::*;
 pub use pcode::*;
+pub use cfg::*;
