@@ -10,19 +10,11 @@
 // express or implied.  See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::PcodeOp;
-
-/// A basic block
-pub trait Block {
-    fn pcodes<T: PcodeOp>(&self) -> &[T];
+pub trait Symbol {
+    fn name(&self) -> &str;
+    fn map_entry<T: SymbolEntry>(&self, i: usize) -> &T;
 }
 
-/// The control flow graph
-pub trait Cfg {
-    /// all basic blocks
-    fn blocks<T: Block>(&self) -> &[T];
-    /// output blocks
-    fn outs<T: Block>(&self) -> &[T];
-    /// input blocks
-    fn ins<T: Block>(&self) -> &[T];
+pub trait SymbolEntry {
+    fn offset(&self) -> u8;
 }

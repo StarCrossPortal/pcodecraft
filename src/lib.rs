@@ -10,11 +10,15 @@
 // express or implied.  See the License for the specific language governing permissions and
 // limitations under the License.
 mod addr;
+mod cfg;
+mod database;
 mod varnode;
 mod pcode;
-mod cfg;
+mod variable;
 
 pub use addr::*;
+pub use cfg::*;
+pub use database::*;
 pub use varnode::*;
 pub use pcode::*;
-pub use cfg::*;
+pub use variable::*;

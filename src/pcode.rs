@@ -11,34 +11,14 @@
 // limitations under the License.
 use crate::{Address, Varnode};
 use std::cmp::{
-    Ordering,
     PartialEq,
     Eq,
     PartialOrd
 };
 
-#[derive(Debug)]
-pub struct SeqNum {
-    pub uniq: u8,
-    pub addr: Address,
-}
-
-impl PartialEq for SeqNum {
-    fn eq(&self, other: &Self) -> bool {
-        self.addr == other.addr && self.uniq == other.uniq
-    }
-}
-
-impl Eq for SeqNum {}
-
-impl PartialOrd for SeqNum {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if self.addr != other.addr {
-            None
-        } else {
-            self.uniq.partial_cmp(&other.uniq)
-        }
-    }
+pub trait SeqNum: PartialEq + Eq + PartialOrd {
+    fn uniq(&self) -> u8;
+    fn addr<T: Address>(&self) -> &T;
 }
 
 #[derive(Debug)]
@@ -137,10 +117,9 @@ pub enum OpCode {
 }
 
 
-#[derive(Debug)]
-pub struct PcodeOp {
-    pub opcode: OpCode,
-    pub seq: SeqNum,
-    pub inputs: Vec<Varnode>,
-    pub output: Option<Varnode>
+pub trait PcodeOp {
+    fn opcode(&self) -> OpCode;
+    fn seq<T: SeqNum>(&self) -> &T;
+    fn inputs<T: Varnode>(&self) -> &[T];
+    fn output<T: Varnode>(&self) -> Option<&T>;
 }

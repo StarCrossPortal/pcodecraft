@@ -10,32 +10,12 @@
 // express or implied.  See the License for the specific language governing permissions and
 // limitations under the License.
 use std::cmp::{
-    Ordering,
     PartialEq,
     Eq,
     PartialOrd
 };
 
-#[derive(Debug)]
-pub struct Address {
-    pub space: String,
-    pub offset: u64,
-}
-
-impl PartialEq for Address {
-    fn eq(&self, other: &Self) -> bool {
-        self.space == other.space && self.offset == other.offset
-    }
-}
-
-impl Eq for Address {}
-
-impl PartialOrd for Address {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if self.space != other.space {
-            return None;
-        }
-
-        self.offset.partial_cmp(&other.offset)
-    }
+pub trait Address: PartialEq + Eq + PartialOrd {
+    fn space(&self) -> String;
+    fn offset(&self) -> u64;
 }

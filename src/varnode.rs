@@ -12,8 +12,7 @@
 
 use crate::Address;
 
-#[derive(Debug)]
-pub struct Varnode {
-    pub addr: Address,
-    pub size: u32,
+pub trait Varnode {
+    fn addr<T: Address>(&self) -> &T;
+    fn size(&self) -> u32;
 }
