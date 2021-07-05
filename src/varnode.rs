@@ -13,8 +13,8 @@
 use crate::{Address, HighVariable};
 
 pub trait Varnode {
-    fn addr<T: Address>(&self) -> &T;
+    fn addr(&self) -> &dyn Address;
     fn size(&self) -> u32;
     /// Varnode::getHigh()
-    fn high_var<T: HighVariable>(&self) -> &T;
+    fn high_var(&self) -> &dyn HighVariable;
 }

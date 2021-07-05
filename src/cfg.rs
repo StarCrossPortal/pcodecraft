@@ -14,15 +14,15 @@ use crate::PcodeOp;
 
 /// A basic block
 pub trait Block {
-    fn pcodes<T: PcodeOp>(&self) -> &[T];
+    fn pcodes(&self) -> &[&dyn PcodeOp];
 }
 
 /// The control flow graph
 pub trait Cfg {
     /// all basic blocks
-    fn blocks<T: Block>(&self) -> &[T];
+    fn blocks(&self) -> &[&dyn Block];
     /// output blocks
-    fn outs<T: Block>(&self) -> &[T];
+    fn outs(&self) -> &[&dyn Block];
     /// input blocks
-    fn ins<T: Block>(&self) -> &[T];
+    fn ins(&self) -> &[&dyn Block];
 }

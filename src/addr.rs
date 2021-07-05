@@ -12,10 +12,28 @@
 use std::cmp::{
     PartialEq,
     Eq,
-    PartialOrd
+    PartialOrd,
+    Ordering
 };
 
-pub trait Address: PartialEq + Eq + PartialOrd {
+pub trait Address {
     fn space(&self) -> String;
     fn offset(&self) -> u64;
+
+    fn equals(&self, other: &dyn Address) -> bool;
+    fn partial_compare(&self, other: &dyn Address) -> Option<Ordering>;
+}
+
+impl<'a> PartialEq for &'a dyn Address {
+    fn eq(&self, other: &&dyn Address) -> bool {
+        self.equals(*other)
+    }
+}
+
+impl<'a> Eq for &'a dyn Address {}
+
+impl<'a> PartialOrd for &'a dyn Address {
+    fn partial_cmp(&self, other: &&dyn Address) -> Option<Ordering> {
+        self.partial_compare(*other)
+    }
 }

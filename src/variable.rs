@@ -13,5 +13,5 @@
 use crate::Symbol;
 
 pub trait HighVariable {
-    fn symbol<T: Symbol>(&self) -> Option<&T>;
+    fn symbol(&self) -> Option<&dyn Symbol>;
 }

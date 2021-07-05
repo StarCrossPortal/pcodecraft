@@ -13,12 +13,30 @@ use crate::{Address, Varnode};
 use std::cmp::{
     PartialEq,
     Eq,
-    PartialOrd
+    PartialOrd,
+    Ordering
 };
 
-pub trait SeqNum: PartialEq + Eq + PartialOrd {
+pub trait SeqNum {
     fn uniq(&self) -> u8;
-    fn addr<T: Address>(&self) -> &T;
+    fn addr(&self) -> &dyn Address;
+
+    fn equals(&self, other: &dyn SeqNum) -> bool;
+    fn partial_compare(&self, other: &dyn SeqNum) -> Option<Ordering>;
+}
+
+impl<'a> PartialEq for &'a dyn SeqNum {
+    fn eq(&self, other: &&dyn SeqNum) -> bool {
+        self.equals(*other)
+    }
+}
+
+impl<'a> Eq for &'a dyn SeqNum {}
+
+impl<'a> PartialOrd for &'a dyn SeqNum {
+    fn partial_cmp(&self, other: &&dyn SeqNum) -> Option<Ordering> {
+        self.partial_compare(*other)
+    }
 }
 
 #[derive(Debug)]
@@ -119,7 +137,7 @@ pub enum OpCode {
 
 pub trait PcodeOp {
     fn opcode(&self) -> OpCode;
-    fn seq<T: SeqNum>(&self) -> &T;
-    fn inputs<T: Varnode>(&self) -> &[T];
-    fn output<T: Varnode>(&self) -> Option<&T>;
+    fn seq(&self) -> &dyn SeqNum;
+    fn inputs(&self) -> &[&dyn Varnode];
+    fn output(&self) -> Option<&dyn Varnode>;
 }

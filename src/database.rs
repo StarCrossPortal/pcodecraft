@@ -12,7 +12,7 @@
 
 pub trait Symbol {
     fn name(&self) -> &str;
-    fn map_entry<T: SymbolEntry>(&self, i: usize) -> &T;
+    fn map_entry(&self, i: usize) -> &dyn SymbolEntry;
 }
 
 pub trait SymbolEntry {
