@@ -16,13 +16,23 @@ use std::cmp::{
     PartialOrd,
     Ordering
 };
+#[cfg(feature = "plain")]
+use serde::{Serialize, Deserialize};
 
 pub trait SeqNum {
     fn uniq(&self) -> u8;
     fn addr(&self) -> &dyn Address;
 
-    fn equals(&self, other: &dyn SeqNum) -> bool;
-    fn partial_compare(&self, other: &dyn SeqNum) -> Option<Ordering>;
+    fn equals(&self, other: &dyn SeqNum) -> bool {
+        self.uniq() == other.uniq() && self.addr() == other.addr()
+    }
+    fn partial_compare(&self, other: &dyn SeqNum) -> Option<Ordering> {
+        if self.addr() == other.addr() {
+            self.uniq().partial_cmp(&other.uniq())
+        } else {
+            self.addr().partial_cmp(&other.addr())
+        }
+    }
 }
 
 impl<'a> PartialEq for &'a dyn SeqNum {
@@ -39,7 +49,8 @@ impl<'a> PartialOrd for &'a dyn SeqNum {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
+#[cfg_attr(feature = "plain", derive(Serialize, Deserialize))]
 #[repr(u8)]
 pub enum OpCode {
     Copy = 1,  // Copy one operand to another
@@ -138,6 +149,6 @@ pub enum OpCode {
 pub trait PcodeOp {
     fn opcode(&self) -> OpCode;
     fn seq(&self) -> &dyn SeqNum;
-    fn inputs(&self) -> &[&dyn Varnode];
+    fn inputs(&self) -> Vec<&dyn Varnode>;
     fn output(&self) -> Option<&dyn Varnode>;
 }

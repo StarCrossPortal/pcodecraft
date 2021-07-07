@@ -20,8 +20,16 @@ pub trait Address {
     fn space(&self) -> String;
     fn offset(&self) -> u64;
 
-    fn equals(&self, other: &dyn Address) -> bool;
-    fn partial_compare(&self, other: &dyn Address) -> Option<Ordering>;
+    fn equals(&self, other: &dyn Address) -> bool {
+        self.space() == other.space() && self.offset() == other.offset()
+    }
+    fn partial_compare(&self, other: &dyn Address) -> Option<Ordering> {
+        if self.space() != other.space() {
+            None
+        } else {
+            self.offset().partial_cmp(&other.offset())
+        }
+    }
 }
 
 impl<'a> PartialEq for &'a dyn Address {

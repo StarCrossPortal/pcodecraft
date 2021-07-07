@@ -16,6 +16,8 @@ mod varnode;
 mod pcode;
 mod variable;
 
+pub mod backend;
+
 pub use addr::*;
 pub use cfg::*;
 pub use database::*;
