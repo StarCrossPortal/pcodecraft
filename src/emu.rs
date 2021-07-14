@@ -1,13 +1,21 @@
-use std::{collections::{BTreeMap, HashMap}};
 use dynasmrt::{AssemblyOffset, ExecutableBuffer};
 use memmap2::Mmap;
 
 #[cfg(target_arch = "x86_64")]
 mod x86_64;
 #[cfg(target_arch = "x86_64")]
-use x86_64::*;
+pub use x86_64::{PcodeCacheOnlyTranslator};
 
-use crate::PcodeOp;
+use crate::{PcodeOp, Varnode};
+
+/// single pcode translate
+pub(crate) trait PcodeTranslator : Default {
+    fn int_add(&mut self, lhs: &dyn Varnode, rhs: &dyn Varnode, out: &dyn Varnode);
+
+    fn translate_pcode(&mut self, pcode: &dyn PcodeOp) -> Result<(AssemblyOffset, ExecutableBuffer)> {
+        todo!()
+    }
+}
 
 #[derive(Debug)]
 pub enum EmuError {
@@ -47,7 +55,7 @@ impl<Trans, Mem> Emulator<Trans, Mem> where Trans: BlockTranslator<Mem>, Mem: Me
     pub fn run(&mut self, entry: usize) -> Result<()> {
         // translate the fall back block then call it.
         // Note that only the first block should be reside in a call, as it can be returned.
-        let entry_block = self.trans.translate(&mut self.mem, entry);
+        let entry_block = self.trans.translate(&mut self.mem, entry)?;
         let entry_func : extern "C" fn () = unsafe {
             std::mem::transmute(entry_block)
         };
@@ -63,39 +71,4 @@ pub struct MemMappedMemory {
     regions: Vec<Mmap>
 }
 
-
 impl Memory for MemMappedMemory {}
-
-/// Pcode cache only block translator that does not translate anything not in the cache.
-/// In other words, no actual translation engine is included.
-#[derive(Debug, Default)]
-pub struct PcodeCacheOnlyTranslator<'a> {
-    /// addr to index into `pcode_cache`
-    cache: BTreeMap<usize, &'a dyn PcodeOp>,
-    block_cache: HashMap<usize, (AssemblyOffset, ExecutableBuffer)>,
-}
-
-impl<'a> PcodeCacheOnlyTranslator<'a> {
-    fn from_cache(cache: BTreeMap<usize, &'a dyn PcodeOp>) -> Self {
-        Self {
-            cache,
-            block_cache: HashMap::default()
-        }
-    }
-
-    fn add_pcode(&mut self, pcode: &'a dyn PcodeOp, addr: usize) {
-        self.cache.insert(addr, pcode);
-    }
-}
-
-impl<'a> BlockTranslator<MemMappedMemory> for PcodeCacheOnlyTranslator<'a> {
-    fn translate(&mut self, _mem: &mut MemMappedMemory, addr: usize) -> Result<*const u8> {
-
-        let cached_op = match self.cache.get(&addr) {
-            Some(op) => op,
-            None => return Err(EmuError::NotInCache(addr))
-        };
-
-        todo!("implement the op translation")
-    }
-}

@@ -25,6 +25,10 @@ impl Address for PlainAddress {
     fn offset(&self) -> u64 {
         self.offset
     }
+
+    fn debug_print(&self) -> String {
+        todo!()
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -100,6 +104,10 @@ impl Varnode for PlainVarnode {
     fn high_var(&self) -> &dyn HighVariable {
         &self.high_var
     }
+
+    fn debug_print(&self) -> String {
+        todo!()
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -125,6 +133,10 @@ impl PcodeOp for PlainPcodeOp {
 
     fn output(&self) -> Option<&dyn Varnode> {
         self.output.as_ref().map(|x| x as &dyn Varnode)
+    }
+
+    fn debug_print(&self) -> String {
+        todo!()
     }
 }
 
