@@ -9,6 +9,9 @@
 // License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
 // express or implied.  See the License for the specific language governing permissions and
 // limitations under the License.
+
+
+// ghidra decompiler interfaces, export them directly
 mod addr;
 mod cfg;
 mod database;
@@ -16,11 +19,13 @@ mod varnode;
 mod pcode;
 mod variable;
 
-pub mod backend;
-
 pub use addr::*;
 pub use cfg::*;
 pub use database::*;
 pub use varnode::*;
 pub use pcode::*;
 pub use variable::*;
+
+pub mod backend;
+#[cfg(feature = "emu")]
+pub mod emu;

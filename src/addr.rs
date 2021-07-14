@@ -30,6 +30,7 @@ pub trait Address {
             self.offset().partial_cmp(&other.offset())
         }
     }
+    fn debug_print(&self) -> String;
 }
 
 impl<'a> PartialEq for &'a dyn Address {
@@ -43,5 +44,11 @@ impl<'a> Eq for &'a dyn Address {}
 impl<'a> PartialOrd for &'a dyn Address {
     fn partial_cmp(&self, other: &&dyn Address) -> Option<Ordering> {
         self.partial_compare(*other)
+    }
+}
+
+impl<'a> std::fmt::Debug for &'a dyn Address {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.debug_print())
     }
 }

@@ -17,4 +17,12 @@ pub trait Varnode {
     fn size(&self) -> u32;
     /// Varnode::getHigh()
     fn high_var(&self) -> &dyn HighVariable;
+
+    fn debug_print(&self) -> String;
+}
+
+impl<'a> std::fmt::Debug for &'a dyn Varnode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.debug_print())
+    }
 }
