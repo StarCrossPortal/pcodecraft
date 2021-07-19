@@ -16,6 +16,8 @@ use std::cmp::{
     PartialOrd,
     Ordering
 };
+#[cfg(feature = "ghidra")]
+use cxx::type_id;
 #[cfg(feature = "plain")]
 use serde::{Serialize, Deserialize};
 
@@ -159,4 +161,10 @@ impl<'a> std::fmt::Debug for &'a dyn PcodeOp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.debug_print())
     }
+}
+
+#[cfg(feature = "ghidra")]
+unsafe impl cxx::ExternType for OpCode {
+    type Id = type_id!("OpCode");
+    type Kind = cxx::kind::Trivial;
 }
