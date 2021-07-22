@@ -1,7 +1,8 @@
-use std::{convert::TryInto, num::TryFromIntError};
+use std::{collections::HashMap, convert::TryInto, num::TryFromIntError};
 
 use dynasmrt::{relocations::Relocation, Assembler};
-use memmap2::Mmap;
+use memmap2::{MmapMut};
+use thiserror::Error;
 
 #[cfg(target_arch = "x86_64")]
 mod x86_64;
@@ -18,7 +19,7 @@ pub trait PcodeTranslator: std::fmt::Debug {
     fn int_add(
         &mut self,
         ops: &mut Assembler<Self::Reloc>,
-        mem: &Self::Mem,
+        mem: &mut Self::Mem,
         inputs: &[&dyn Varnode],
         out: &dyn Varnode,
     ) -> Result<()>;
@@ -27,7 +28,7 @@ pub trait PcodeTranslator: std::fmt::Debug {
     fn translate_pcode(
         &mut self,
         ops: &mut Assembler<Self::Reloc>,
-        mem: &Self::Mem,
+        mem: &mut Self::Mem,
         pcode: &dyn PcodeOp,
     ) -> Result<()> {
         use OpCode::*;
@@ -51,16 +52,17 @@ pub trait PcodeTranslator: std::fmt::Debug {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum EmuError {
     /// Cache-only translator requires every address is in the cache. If not, this error indicates
     /// that it is unable to continue execution.
+    #[error("unable to continue execution as offset {0} is not in cache")]
     NotInCache(usize),
-    /// This address cannot be translated into target memory addressing.
-    /// Address is represented by (space, offset)
-    UnknownAddr((String, usize)),
     /// Host addressing is not enough for target machine.
-    NotEnoughAddressing(TryFromIntError),
+    #[error("Offset is too large to fit into host machine")]
+    OffsetTooLarge(#[from] TryFromIntError),
+    #[error("IO error")]
+    IoError(#[from] std::io::Error),
 }
 
 // TODO: implement Error for EmuError
@@ -72,7 +74,7 @@ pub trait Memory: std::fmt::Debug {
     type MemAddr;
 
     /// Translate the pcode addr into this memory's addressing
-    fn translate(&self, addr: &dyn Address) -> Result<Self::MemAddr>;
+    fn translate_addr(&mut self, addr: &dyn Address) -> Result<Self::MemAddr>;
 }
 
 /// Emulator Memory
@@ -116,8 +118,7 @@ where
 /// Plain memory that gets mapped into the system already.
 #[derive(Debug)]
 pub struct MemMappedMemory {
-    /// vec of (begin, size). All these memories are actually mapped.
-    regions: Vec<Mmap>,
+    regions: HashMap<String, MmapMut>,
     /// the base of the register
     reg_base: usize,
 }
@@ -126,7 +127,7 @@ impl MemMappedMemory {
     pub fn new(reg_base: usize) -> Self {
         Self {
             reg_base,
-            regions: vec![],
+            regions: HashMap::new(),
         }
     }
 }
@@ -134,16 +135,25 @@ impl MemMappedMemory {
 impl Memory for MemMappedMemory {
     type MemAddr = usize;
 
-    fn translate(&self, addr: &dyn Address) -> Result<Self::MemAddr> {
+    fn translate_addr(&mut self, addr: &dyn Address) -> Result<Self::MemAddr> {
         let offset: usize = addr
             .offset()
-            .try_into()
-            .map_err(|e| EmuError::NotEnoughAddressing(e))?;
+            .try_into()?;
 
-        match addr.space().as_str() {
-            "register" => Ok(offset + self.reg_base),
-            "ram" => Ok(offset),
-            _ => Err(EmuError::UnknownAddr((addr.space(), offset))),
+        let default_size = (offset & (!0xfff)) + 0x2000;
+
+        let region_entry = self.regions.entry(addr.space());
+        let region = region_entry.or_insert(MmapMut::map_anon(default_size)?.make_exec()?.make_mut()?);
+
+        if offset >= region.len() {
+            // Current region is unable to store the required offset, enlarge it
+            let mut new_region = MmapMut::map_anon(default_size)?.make_exec()?.make_mut()?;
+            new_region.as_mut().copy_from_slice(region.as_ref());
+            let final_addr = new_region.as_ptr() as usize + offset;
+            *self.regions.get_mut(&addr.space()).unwrap() = new_region;
+            Ok(final_addr)
+        } else {
+            Ok(region.as_ptr() as usize + offset)
         }
     }
 }

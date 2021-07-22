@@ -7,6 +7,69 @@ use dynasmrt::{
 };
 use std::collections::{BTreeMap, HashMap};
 
+macro_rules! init_reg_rdx {
+    ($ops:ident, $mem:ident, $input_varnode:ident) => {
+        let input_addr = $mem.translate_addr($input_varnode.addr())?;
+        let size = $input_varnode.size();
+        match size {
+            1 => {
+                dynasm!($ops
+                    ; xor rdx, rdx
+                    ; mov dl, BYTE [input_addr as _]
+                );
+            }
+            2 => {
+                dynasm!($ops
+                    ; xor rdx, rdx
+                    ; mov dx, WORD [input_addr as _]
+                );
+            }
+            4 => {
+                dynasm!($ops
+                    ; xor rdx, rdx
+                    ; mov edx, DWORD [input_addr as _]
+                );
+            }
+            8 => {
+                dynasm!($ops
+                    ; mov rdx, QWORD [input_addr as _]
+                );
+            },
+            _ => unreachable!()
+        }
+    };
+}
+
+macro_rules! fini_reg_rax {
+    ($ops:ident, $mem:ident, $input_varnode:ident) => {
+        let out_addr = $mem.translate_addr($input_varnode.addr())?;
+        let size = $input_varnode.size();
+        match size {
+            1 => {
+                dynasm!($ops
+                    ; mov BYTE [out_addr as _], al
+                );
+            }
+            2 => {
+                dynasm!($ops
+                    ; mov WORD [out_addr as _], ax
+                );
+            }
+            4 => {
+                dynasm!($ops
+                    ; mov DWORD [out_addr as _], eax
+                );
+            }
+            8 => {
+                dynasm!($ops
+                    ; mov QWORD [out_addr as _], rax
+                );
+            },
+            _ => unreachable!()
+        }
+    };
+}
+
 /// Jitting pcode translator. Translate pcode by jitting it into x86 asm.
 #[derive(Debug)]
 pub struct X64JitPcodeTranslator {
@@ -21,14 +84,13 @@ impl PcodeTranslator for X64JitPcodeTranslator {
     fn int_add(
         &mut self,
         ops: &mut dynasmrt::Assembler<Self::Reloc>,
-        mem: &MemMappedMemory,
+        mem: &mut MemMappedMemory,
         inputs: &[&dyn crate::Varnode],
         out: &dyn crate::Varnode,
     ) -> Result<()> {
         dynasm!(ops
             ; xor rax, rax // rax is the accumulation value
         );
-
         for input in inputs {
             if &input.addr().space() == "const" {
                 // add a const
@@ -37,67 +99,13 @@ impl PcodeTranslator for X64JitPcodeTranslator {
                     ; add rax, value as _
                 );
             } else {
-                let input_addr = mem.translate(input.addr())?;
-                let size = input.size();
-                match size {
-                    1 => {
-                        dynasm!(ops
-                            ; xor rdx, rdx
-                            ; mov dl, BYTE [input_addr as _]
-                            ; add rax, rdx
-                        );
-                    }
-                    2 => {
-                        dynasm!(ops
-                            ; xor rdx, rdx
-                            ; mov dx, WORD [input_addr as _]
-                            ; add rax, rdx
-                        );
-                    }
-                    4 => {
-                        dynasm!(ops
-                            ; xor rdx, rdx
-                            ; mov edx, DWORD [input_addr as _]
-                            ; add rax, rdx
-                        );
-                    }
-                    8 => {
-                        dynasm!(ops
-                            ; add rax, QWORD [input_addr as _]
-                        );
-                    }
-                    _ => unreachable!(),
-                }
+                init_reg_rdx!(ops, mem, input);
+                dynasm!(ops
+                    ; add rax, rdx
+                );
             }
         }
-
-        let out_addr = mem.translate(out.addr())?;
-        let size = out.size();
-
-        match size {
-            1 => {
-                dynasm!(ops
-                    ; mov BYTE [out_addr as _], al
-                );
-            }
-            2 => {
-                dynasm!(ops
-                    ; mov WORD [out_addr as _], ax
-                );
-            }
-            4 => {
-                dynasm!(ops
-                    ; mov DWORD [out_addr as _], eax
-                );
-            }
-            8 => {
-                dynasm!(ops
-                    ; mov QWORD [out_addr as _], rax
-                );
-            }
-            _ => unreachable!(),
-        }
-
+        fini_reg_rax!(ops, mem, out);
         Ok(())
     }
 }
