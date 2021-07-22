@@ -26,7 +26,7 @@ macro_rules! def_op {
 }
 
 /// single pcode translate
-pub trait PcodeTranslator: std::fmt::Debug {
+pub trait ArithPcodeTranslator: std::fmt::Debug {
     type Reloc: Relocation;
     type Mem: Memory;
 
@@ -34,13 +34,6 @@ pub trait PcodeTranslator: std::fmt::Debug {
     def_op!(copy);
     def_op!(load);
     def_op!(store);
-    def_op!(branch);
-    def_op!(cbranch);
-    def_op!(branchind);
-    def_op!(call);
-    def_op!(callind);
-    def_op!(userdefined);
-    def_op!(return_op);
     def_op!(piece);
     def_op!(subpiece);
     def_op!(int_equal);
@@ -127,9 +120,15 @@ pub enum EmuError {
     /// that it is unable to continue execution.
     #[error("unable to continue execution as offset {0} is not in cache")]
     NotInCache(usize),
+    #[error("Address space {0} is not in the memory space")]
+    UnknownAddressSpace(String),
+    #[error("Address space with id {0} is not in the memory space")]
+    UnknownAddressSpaceId(u64),
     /// Host addressing is not enough for target machine.
     #[error("Offset is too large to fit into host machine")]
     OffsetTooLarge(#[from] TryFromIntError),
+    #[error("Pcode invalid with reason: {0}")]
+    InvalidPcode(String),
     #[error("IO error")]
     IoError(#[from] std::io::Error),
 }
@@ -144,6 +143,9 @@ pub trait Memory: std::fmt::Debug {
 
     /// Translate the pcode addr into this memory's addressing
     fn translate_addr(&mut self, addr: &dyn Address) -> Result<Self::MemAddr>;
+
+    /// Translate the pcode addr under specific space (with its id) into this memory's addressing
+    fn trans_addr_under_space_id(&mut self, space_id: u64, offset: u64) -> Result<Self::MemAddr>;
 }
 
 /// Emulator Memory
@@ -188,15 +190,56 @@ where
 #[derive(Debug)]
 pub struct MemMappedMemory {
     regions: HashMap<String, MmapMut>,
-    /// the base of the register
-    reg_base: usize,
+    /// space id => space name
+    space_id_table: HashMap<u64, String>,
+    temp_base: usize,
 }
 
 impl MemMappedMemory {
-    pub fn new(reg_base: usize) -> Self {
-        Self {
-            reg_base,
-            regions: HashMap::new(),
+    pub fn new() -> Result<Self> {
+        let temp_region = MmapMut::map_anon(0x1000)?.make_exec()?.make_mut()?;
+        let temp_base = temp_region.as_ptr() as usize;
+        let mut regions = HashMap::new();
+        // insert special region for floating point operations (which requires memory)
+        regions.insert("__temp".to_string(), temp_region);
+        Ok(Self {
+            temp_base,
+            regions,
+            space_id_table: HashMap::new(),
+        })
+    }
+
+    pub fn temp_base(&mut self) -> usize {
+        self.temp_base
+    }
+
+    pub fn insert_space(&mut self, id: u64, name: String) -> Result<()> {
+        let default_size = 0x2000;
+        self.regions
+            .entry(name.clone())
+            .or_insert(MmapMut::map_anon(default_size)?.make_exec()?.make_mut()?);
+        self.space_id_table
+            .entry(id)
+            .or_insert(name);
+        Ok(())
+    }
+
+    fn translate_space_offset(&mut self, space: &str, offset: u64) -> Result<usize> {
+        let offset: usize = offset.try_into()?;
+        let default_size = (offset & (!0xfff)) + 0x2000;
+
+        let region = self.regions.get(space)
+            .ok_or(EmuError::UnknownAddressSpace(space.to_string()))?;
+
+        if offset >= region.len() {
+            // Current region is unable to store the required offset, enlarge it
+            let mut new_region = MmapMut::map_anon(default_size)?.make_exec()?.make_mut()?;
+            new_region.as_mut().copy_from_slice(region.as_ref());
+            let final_addr = new_region.as_ptr() as usize + offset;
+            *self.regions.get_mut(space).unwrap() = new_region;
+            Ok(final_addr)
+        } else {
+            Ok(region.as_ptr() as usize + offset)
         }
     }
 }
@@ -205,23 +248,13 @@ impl Memory for MemMappedMemory {
     type MemAddr = usize;
 
     fn translate_addr(&mut self, addr: &dyn Address) -> Result<Self::MemAddr> {
-        let offset: usize = addr.offset().try_into()?;
+        self.translate_space_offset(addr.space().as_ref(), addr.offset())
+    }
 
-        let default_size = (offset & (!0xfff)) + 0x2000;
-
-        let region_entry = self.regions.entry(addr.space());
-        let region =
-            region_entry.or_insert(MmapMut::map_anon(default_size)?.make_exec()?.make_mut()?);
-
-        if offset >= region.len() {
-            // Current region is unable to store the required offset, enlarge it
-            let mut new_region = MmapMut::map_anon(default_size)?.make_exec()?.make_mut()?;
-            new_region.as_mut().copy_from_slice(region.as_ref());
-            let final_addr = new_region.as_ptr() as usize + offset;
-            *self.regions.get_mut(&addr.space()).unwrap() = new_region;
-            Ok(final_addr)
-        } else {
-            Ok(region.as_ptr() as usize + offset)
-        }
+    fn trans_addr_under_space_id(&mut self, space_id: u64, offset: u64) -> Result<Self::MemAddr> {
+        let space_name= self.space_id_table.get(&space_id)
+            .ok_or(EmuError::UnknownAddressSpaceId(space_id))?
+            .to_string();
+        self.translate_space_offset(space_name.as_ref(), offset)
     }
 }
