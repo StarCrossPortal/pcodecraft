@@ -100,7 +100,7 @@ macro_rules! ensure_output {
 /// impl_int__arith_jit_pcode!(int_add [add rax, rcx]);
 /// ```
 macro_rules! impl_int_arith_jit_pcode {
-    ($opname:ident [$op:tt $dst_reg:tt, $src_reg:tt]) => {
+    ($opname:ident [$op:tt $dst_reg:tt, $src_reg:tt $(; $next_ops:tt $next_dests:tt $(, $next_srcs:tt)?)*]) => {
         fn $opname(
             &mut self,
             ops: &mut dynasmrt::Assembler<Self::Reloc>,
@@ -122,6 +122,7 @@ macro_rules! impl_int_arith_jit_pcode {
                     init_reg_rcx!(ops, mem, input);
                     dynasm!(ops
                         ; $op $dst_reg, $src_reg
+                        $(; $next_ops $next_dests $(, $next_srcs)?)*
                     );
                 }
             }
@@ -129,7 +130,7 @@ macro_rules! impl_int_arith_jit_pcode {
             Ok(())
         }
     };
-    ($opname:ident [$op:tt $src_reg:tt]) => {
+    ($opname:ident [$op:tt $src_reg:tt $(; $next_ops:tt $next_dests:tt $(, $next_srcs:tt)?)*]) => {
         fn $opname(
             &mut self,
             ops: &mut dynasmrt::Assembler<Self::Reloc>,
@@ -154,41 +155,7 @@ macro_rules! impl_int_arith_jit_pcode {
                     init_reg_rcx!(ops, mem, input);
                     dynasm!(ops
                         ; $op $src_reg
-                    );
-                }
-            }
-            fini_reg_rax!(ops, mem, out);
-            Ok(())
-        }
-    };
-    // used in remainder
-    ($opname:ident [$op:tt $src_reg:tt; $fini_op:tt $fini_dst_reg:tt, $fini_src_reg:tt]) => {
-        fn $opname(
-            &mut self,
-            ops: &mut dynasmrt::Assembler<Self::Reloc>,
-            mem: &mut MemMappedMemory,
-            inputs: &[&dyn crate::Varnode],
-            out: Option<&dyn crate::Varnode>
-        ) -> Result<()> {
-            ensure_output!(out);
-            dynasm!(ops
-                ; xor rax, rax
-            );
-            for input in inputs {
-                if &input.addr().space() == "const" {
-                    let value = input.addr().offset();
-                    // many 1 operand operations don't support immediate
-                    // e.g: mul, div..
-                    dynasm!(ops
-                        ; mov $src_reg, value as _
-                        ; $op $src_reg
-                        ; $fini_op $fini_dst_reg, $fini_src_reg
-                    );
-                } else {
-                    init_reg_rcx!(ops, mem, input);
-                    dynasm!(ops
-                        ; $op $src_reg
-                        ; $fini_op $fini_dst_reg, $fini_src_reg
+                        $(; $next_ops $next_dests $(, $next_srcs)?)*
                     );
                 }
             }
@@ -204,6 +171,7 @@ impl PcodeTranslator for X64JitPcodeTranslator {
 
     impl_int_arith_jit_pcode!(int_add [add rax, rcx]);
     impl_int_arith_jit_pcode!(int_sub [sub rax, rcx]);
+    impl_int_arith_jit_pcode!(int_negate [not rcx; mov rax, rcx]);
     impl_int_arith_jit_pcode!(int_xor [xor rax, rcx]);
     impl_int_arith_jit_pcode!(int_and [and rax, rcx]);
     impl_int_arith_jit_pcode!(int_or [or rax, rcx]);
