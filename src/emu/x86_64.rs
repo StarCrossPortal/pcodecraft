@@ -77,6 +77,15 @@ pub struct X64JitPcodeTranslator {
     reg_base: usize,
 }
 
+macro_rules! ensure_output {
+    ($out:ident) => {
+        let $out = match $out {
+            Some(out) => out,
+            None => return Ok(())
+        };
+    };
+}
+
 impl PcodeTranslator for X64JitPcodeTranslator {
     type Mem = MemMappedMemory;
     type Reloc = X64Relocation;
@@ -86,8 +95,9 @@ impl PcodeTranslator for X64JitPcodeTranslator {
         ops: &mut dynasmrt::Assembler<Self::Reloc>,
         mem: &mut MemMappedMemory,
         inputs: &[&dyn crate::Varnode],
-        out: &dyn crate::Varnode,
+        out: Option<&dyn crate::Varnode>,
     ) -> Result<()> {
+        ensure_output!(out);
         dynasm!(ops
             ; xor rax, rax // rax is the accumulation value
         );
