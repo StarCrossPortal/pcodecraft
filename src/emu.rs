@@ -86,7 +86,6 @@ pub trait ArithPcodeTranslator: std::fmt::Debug {
     def_op!(trunc);
     def_op!(cpoolref);
     def_op!(new_op);
-    // todo: other operations..
 
     fn translate_pcode(
         &mut self,
@@ -106,8 +105,61 @@ pub trait ArithPcodeTranslator: std::fmt::Debug {
         }
 
         match pcode.opcode() {
-            IntAdd => side_effect_free_op!(int_add),
             Copy => side_effect_free_op!(copy),
+            Load => side_effect_free_op!(load),
+            Store => side_effect_free_op!(store),
+            Piece => side_effect_free_op!(piece),
+            SubPiece => side_effect_free_op!(subpiece),
+            IntEqual => side_effect_free_op!(int_equal),
+            IntNotEqual => side_effect_free_op!(int_notequal),
+            IntLess => side_effect_free_op!(int_less),
+            IntSless => side_effect_free_op!(int_sless),
+            IntLessEqual => side_effect_free_op!(int_lessequal),
+            IntSlessEqual => side_effect_free_op!(int_slessequal),
+            IntZext => side_effect_free_op!(int_zext),
+            IntSext => side_effect_free_op!(int_sext),
+            IntAdd => side_effect_free_op!(int_add),
+            IntSub => side_effect_free_op!(int_sub),
+            IntCarry => side_effect_free_op!(int_carry),
+            IntSCarry => side_effect_free_op!(int_scarry),
+            IntSBorrow => side_effect_free_op!(int_sborrow),
+            Int2Comp => side_effect_free_op!(int_2comp),
+            IntNegate => side_effect_free_op!(int_negate),
+            IntXor => side_effect_free_op!(int_xor),
+            IntAnd => side_effect_free_op!(int_and),
+            IntOr => side_effect_free_op!(int_or),
+            IntLeft => side_effect_free_op!(int_left),
+            IntRight => side_effect_free_op!(int_right),
+            IntSRight => side_effect_free_op!(int_sright),
+            IntMult => side_effect_free_op!(int_mult),
+            IntDiv => side_effect_free_op!(int_div),
+            IntRem => side_effect_free_op!(int_rem),
+            IntSDiv => side_effect_free_op!(int_sdiv),
+            IntSRem => side_effect_free_op!(int_srem),
+            BoolNegate => side_effect_free_op!(bool_negate),
+            BoolXor => side_effect_free_op!(bool_xor),
+            BoolAnd => side_effect_free_op!(bool_and),
+            BoolOr => side_effect_free_op!(bool_or),
+            FloatEqual => side_effect_free_op!(float_equal),
+            FloatNotEqual => side_effect_free_op!(float_notequal),
+            FloatLess => side_effect_free_op!(float_less),
+            FloatLessEqual => side_effect_free_op!(float_lessequal),
+            FloatAdd => side_effect_free_op!(float_add),
+            FloatSub => side_effect_free_op!(float_sub),
+            FloatMult => side_effect_free_op!(float_mult),
+            FloatDiv => side_effect_free_op!(float_div),
+            FloatNeg => side_effect_free_op!(float_neg),
+            FloatAbs => side_effect_free_op!(float_abs),
+            FloatSqrt => side_effect_free_op!(float_sqrt),
+            FloatCeil => side_effect_free_op!(float_ceil),
+            FloatFloor => side_effect_free_op!(float_floor),
+            FloatRound => side_effect_free_op!(float_round),
+            FloatNan => side_effect_free_op!(float_nan),
+            FloatInt2Float => side_effect_free_op!(int2float),
+            FloatFloat2Float => side_effect_free_op!(float2float),
+            FloatTrunc => side_effect_free_op!(trunc),
+            CPoolRef => side_effect_free_op!(cpoolref),
+            New => side_effect_free_op!(new_op),
             _ => todo!("other opcodes"),
         }
         todo!()
@@ -132,8 +184,6 @@ pub enum EmuError {
     #[error("IO error")]
     IoError(#[from] std::io::Error),
 }
-
-// TODO: implement Error for EmuError
 
 pub type Result<T> = std::result::Result<T, EmuError>;
 
