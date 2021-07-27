@@ -36,7 +36,9 @@ pub trait SeqNum {
         }
     }
 
-    fn debug_print(&self) -> String;
+    fn debug_print(&self) -> String {
+        format!("SeqNum {{ uniq = {}, addr = {:?}}}", self.uniq(), self.addr())
+    }
 }
 
 impl<'a> PartialEq for &'a dyn SeqNum {
@@ -162,7 +164,9 @@ pub trait PcodeOp {
     fn inputs(&self) -> Vec<&dyn Varnode>;
     fn output(&self) -> Option<&dyn Varnode>;
 
-    fn debug_print(&self) -> String;
+    fn debug_print(&self) -> String {
+        format!("PcodeOp {{ opcode = {:?}, seq = {:?}, inputs = {:?}, output = {:?}}}", self.opcode(), self.seq(), self.inputs(), self.output())
+    }
 }
 
 impl<'a> std::fmt::Debug for &'a dyn PcodeOp {

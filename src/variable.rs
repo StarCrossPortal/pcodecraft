@@ -14,7 +14,9 @@ use crate::Symbol;
 
 pub trait HighVariable {
     fn symbol(&self) -> Option<&dyn Symbol>;
-    fn debug_print(&self) -> String;
+    fn debug_print(&self) -> String {
+        format!("HighVar {{symbol = {:?}}}", self.symbol())
+    }
 }
 
 impl<'a> std::fmt::Debug for &'a dyn HighVariable {

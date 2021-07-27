@@ -13,7 +13,18 @@
 pub trait Symbol {
     fn name(&self) -> &str;
     fn map_entry(&self, i: usize) -> &dyn SymbolEntry;
-    fn debug_print(&self) -> String;
+    fn num_entries(&self) -> usize;
+    fn debug_print(&self) -> String {
+        let mut map_entry = String::new();
+        let num = self.num_entries();
+        for i in 0..num {
+            map_entry.push_str(&format!("{:?}", self.map_entry(i)));
+            if i != num - 1 {
+                map_entry.push_str(&format!(","));
+            }
+        }
+        format!("Symbol {{name = {}, map_entry = [{:?}]}}", self.name(), map_entry)
+    }
 }
 
 impl<'a> std::fmt::Debug for &'a dyn Symbol {
@@ -24,4 +35,14 @@ impl<'a> std::fmt::Debug for &'a dyn Symbol {
 
 pub trait SymbolEntry {
     fn offset(&self) -> u8;
+
+    fn debug_print(&self) -> String {
+        format!("SymbolEntry {{ offset = {}}}", self.offset())
+    }
+}
+
+impl<'a> std::fmt::Debug for &'a dyn SymbolEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.debug_print())
+    }
 }

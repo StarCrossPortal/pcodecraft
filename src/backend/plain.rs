@@ -36,10 +36,6 @@ impl Address for PlainAddress {
     fn offset(&self) -> u64 {
         self.offset
     }
-
-    fn debug_print(&self) -> String {
-        format!("Address {{ space = {}, offset = {}}}", self.space(), self.offset())
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -55,10 +51,6 @@ impl SeqNum for PlainSeqNum {
 
     fn addr(&self) -> &dyn Address {
         &self.addr
-    }
-
-    fn debug_print(&self) -> String {
-        format!("SeqNum {{ uniq = {}, addr = {:?}}}", self.uniq(), self.addr())
     }
 }
 
@@ -88,8 +80,8 @@ impl Symbol for PlainSymbol {
         &self.map_entry[i]
     }
 
-    fn debug_print(&self) -> String {
-        format!("Symbol {{name = {}, map_entry = {:?}}}", self.name(), self.map_entry)
+    fn num_entries(&self) -> usize {
+        self.map_entry.len()
     }
 }
 
@@ -101,10 +93,6 @@ pub struct PlainHighVariable {
 impl HighVariable for PlainHighVariable {
     fn symbol(&self) -> Option<&dyn Symbol> {
         self.symbol.as_ref().map(|x| x as &dyn Symbol)
-    }
-
-    fn debug_print(&self) -> String {
-        format!("HighVar {{symbol = {:?}}}", self.symbol())
     }
 }
 
@@ -126,10 +114,6 @@ impl Varnode for PlainVarnode {
 
     fn high_var(&self) -> Option<&dyn HighVariable> {
         self.high_var.as_ref().map(|v| v as &dyn HighVariable)
-    }
-
-    fn debug_print(&self) -> String {
-        format!("Varnode {{addr = {:?}, size = {}, high_var = {:?}}}", self.addr(), self.size(), self.high_var())
     }
 }
 
@@ -156,10 +140,6 @@ impl PcodeOp for PlainPcodeOp {
 
     fn output(&self) -> Option<&dyn Varnode> {
         self.output.as_ref().map(|x| x as &dyn Varnode)
-    }
-
-    fn debug_print(&self) -> String {
-        format!("PcodeOp {{ opcode = {:?}, seq = {:?}, inputs = {:?}, output = {:?}}}", self.opcode(), self.seq(), self.inputs(), self.output())
     }
 }
 

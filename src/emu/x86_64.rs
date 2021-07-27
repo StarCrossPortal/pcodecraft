@@ -11,16 +11,18 @@
 // limitations under the License.
 #![allow(unused_parens)]
 use super::{ArithPcodeTranslator, BlockTranslator, MemMappedMemory, Result};
-use crate::{Address, PcodeOp, SeqNum, Varnode, emu::{EmuError, Memory}};
+use crate::{
+    emu::{EmuError, Memory},
+    Address, PcodeOp, SeqNum, Varnode,
+};
 use dynasm::dynasm;
 use dynasmrt::{
     x64::{self, X64Relocation},
-    Assembler, AssemblyOffset, DynasmApi, ExecutableBuffer, DynasmLabelApi
+    Assembler, AssemblyOffset, DynasmApi, DynasmLabelApi, ExecutableBuffer,
 };
 use std::{
-    borrow::Borrow,
-    cell::{Ref, RefCell},
-    collections::{BTreeMap, HashMap},
+    cell::{RefCell},
+    collections::{hash_map::Entry, BTreeMap, HashMap},
 };
 
 macro_rules! init_reg_rcx {
@@ -688,19 +690,36 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
     }
 
     pub fn add_pcode(&mut self, seq: &dyn SeqNum, pcode: &'a dyn PcodeOp) {
-        self.cache.insert((seq.addr().offset() as usize, seq.uniq() as usize), pcode);
+        self.cache
+            .insert((seq.addr().offset() as usize, seq.uniq() as usize), pcode);
     }
 
-    extern "C" fn jump_stub(&mut self, mem: &mut MemMappedMemory, target_addr: &dyn Address) {
-        let addr = mem.translate_addr(target_addr).unwrap();
+    extern "C" fn jump_stub(&mut self, mem: &mut MemMappedMemory, target: usize) {
+        struct TempAddr {
+            offset: usize,
+        }
+
+        impl Address for TempAddr {
+            fn space(&self) -> String {
+                "ram".to_string()
+            }
+
+            fn offset(&self) -> u64 {
+                self.offset as u64
+            }
+        }
+
+        let target_addr = TempAddr { offset: target };
+
+        let addr = mem.translate_addr(&target_addr).unwrap();
         if let Some((offset, code)) = self.block_cache.borrow().get(&addr) {
             let f: extern "win64" fn() -> () = unsafe { std::mem::transmute(code.ptr(*offset)) };
             f();
             unreachable!();
         };
 
-        let (offset, code) = self.translate(mem, target_addr).unwrap();
-        let f: extern "win64" fn() -> () = unsafe { std::mem::transmute(code.ptr(*offset)) };
+        let code = self.translate(mem, &target_addr).unwrap();
+        let f: extern "win64" fn() -> () = unsafe { std::mem::transmute(code) };
         f();
     }
 
@@ -723,8 +742,7 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
             None => {}
         }
 
-        let (offset, code) = self.translate(mem, pcode.inputs()[0].addr())?;
-        let target = code.borrow().ptr(offset.to_owned());
+        let target = self.translate(mem, pcode.inputs()[0].addr())?;
         dynasm!(ops
             ; mov rax, QWORD target as _
             ; jmp rax
@@ -745,8 +763,7 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
         let target = match cached.get(&addr) {
             Some((offset, code)) => code.ptr(*offset),
             None => {
-                let (offset, code) = self.translate(mem, inputs[1].addr())?;
-                code.borrow().ptr(offset.to_owned())
+                self.translate(mem, inputs[1].addr())?
             }
         };
 
@@ -768,7 +785,7 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
         ops: &mut Assembler<X64Relocation>,
     ) -> Result<()> {
         let inputs = pcode.inputs();
-        let addr = inputs[0].addr() as *const _ as *const () as usize;
+        let addr = mem.translate_addr(inputs[0].addr())?;
 
         let self_ptr = self as *const _ as usize;
         let mem_ptr = mem as *const _ as usize;
@@ -778,7 +795,10 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
         dynasm!(ops
             ; mov rdi, QWORD self_ptr as _
             ; mov rsi, QWORD mem_ptr as _
+
             ; mov rdx, QWORD addr as _
+            ; mov rdx, QWORD [rdx]
+
             ; mov rax, QWORD stub as _
             ; jmp rax
         );
@@ -796,8 +816,7 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
         let target = match cached.get(&addr) {
             Some((offset, code)) => code.ptr(*offset),
             None => {
-                let (offset, code) = self.translate(mem, pcode.inputs()[0].addr())?;
-                code.borrow().ptr(offset.to_owned())
+                self.translate(mem, pcode.inputs()[0].addr())?
             }
         };
 
@@ -825,7 +844,10 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
         dynasm!(ops
             ; mov rdi, QWORD self_ptr as _
             ; mov rsi, QWORD mem_ptr as _
+
             ; mov rdx, QWORD addr as _
+            ; mov rdx, [rdx]
+
             ; mov rax, QWORD stub as _
             ; call rax
         );
@@ -872,11 +894,7 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
 impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMappedMemory>>
     BlockTranslator<MemMappedMemory> for PcodeCacheOnlyTranslator<'a, PcodeTrans>
 {
-    fn translate(
-        &self,
-        mem: &mut MemMappedMemory,
-        addr: &dyn Address,
-    ) -> Result<(Ref<AssemblyOffset>, Ref<ExecutableBuffer>)> {
+    fn translate(&self, mem: &mut MemMappedMemory, addr: &dyn Address) -> Result<*const u8> {
         let cache_op_iter = self
             .cache
             .iter()
@@ -916,9 +934,13 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
                     Return => {
                         self.translate_return(mem, *pcode, &mut ops)?;
                     }
-                    _ => return Err(EmuError::UnableToTranslate),
+                    _ => {
+                        return Err(EmuError::UnableToTranslate);
+                    }
                 },
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e);
+                }
             }
         }
 
@@ -926,18 +948,13 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
 
         let translated_addr = mem.translate_addr(addr)?;
 
-        self.block_cache
-            .borrow_mut()
-            .insert(translated_addr, (offset, block_result));
-
-        let res = Ref::map(self.block_cache.borrow(), |block_cache| {
-            block_cache.get(&translated_addr).unwrap()
-        });
-
-        let offset = Ref::map(Ref::clone(&res), |res| &res.0);
-        let code = Ref::map(res, |res| &res.1);
-
-        Ok((offset, code))
+        let code = if let Entry::Vacant(e) = self.block_cache.borrow_mut().entry(translated_addr) {
+            let (offset, code) = e.insert((offset, block_result));
+            code.ptr(*offset)
+        } else {
+            unreachable!()
+        };
+        Ok(code)
     }
 }
 
@@ -996,6 +1013,51 @@ fn test_two_blocks() {
         plain_pcode!(0x1001:0| ("register", 0x8, 8) = [Copy] ("const", 8, 8)),
         plain_pcode!(0x1002:0| ("register", 0, 8) = [IntAdd] ("register", 0, 8) ("register", 8, 8)),
         plain_pcode!(0x1010:0| [Branch] ("ram", 0x1011, 8)),
+        plain_pcode!(0x1011:0| [Return]),
+    ];
+
+    let mut mem = MemMappedMemory::new().unwrap();
+    mem.insert_space(0, "register".to_string()).unwrap();
+    mem.insert_space(1, "ram".to_string()).unwrap();
+
+    let mut block_trans = PcodeCacheOnlyTranslator::new(X64ArithJitPcodeTranslator::default());
+
+    for ins in insns.iter() {
+        block_trans.add_pcode(ins.seq(), ins);
+    }
+
+    let mut emu = Emulator::new(block_trans, mem);
+
+    emu.run(&PlainAddress {
+        space: "ram".to_string(),
+        offset: 0x1000,
+    })
+    .unwrap();
+
+    assert_eq!(
+        emu.mem
+            .read_mem::<u64>(&PlainAddress {
+                space: "register".to_string(),
+                offset: 0x0
+            })
+            .unwrap(),
+        0x10
+    );
+}
+
+#[test]
+fn test_indirect() {
+    use crate::backend::plain::*;
+    use crate::emu::Emulator;
+    use crate::plain_pcode;
+    use crate::OpCode::*;
+
+    let insns = vec![
+        plain_pcode!(0x1000:0| ("register", 0x10, 8) = [Copy] ("const", 0x1011, 8)),
+        plain_pcode!(0x1001:0| ("register", 0, 8) = [Copy] ("const", 8, 8)),
+        plain_pcode!(0x1002:0| ("register", 0x8, 8) = [Copy] ("const", 8, 8)),
+        plain_pcode!(0x1003:0| ("register", 0, 8) = [IntAdd] ("register", 0, 8) ("register", 8, 8)),
+        plain_pcode!(0x1004:0| [BranchInd] ("register", 0x10, 8)),
         plain_pcode!(0x1011:0| [Return]),
     ];
 

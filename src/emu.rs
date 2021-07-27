@@ -9,9 +9,9 @@
 // License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
 // express or implied.  See the License for the specific language governing permissions and
 // limitations under the License.
-use std::{cell::Ref, collections::HashMap, convert::TryInto, num::TryFromIntError};
+use std::{collections::HashMap, convert::TryInto, num::TryFromIntError};
 
-use dynasmrt::{relocations::Relocation, Assembler, AssemblyOffset, ExecutableBuffer};
+use dynasmrt::{relocations::Relocation, Assembler};
 use memmap2::MmapMut;
 use thiserror::Error;
 
@@ -222,7 +222,7 @@ pub trait BlockTranslator<Mem: Memory>: std::fmt::Debug {
         &self,
         mem: &mut Mem,
         addr: &dyn Address,
-    ) -> Result<(Ref<AssemblyOffset>, Ref<ExecutableBuffer>)>;
+    ) -> Result<*const u8>;
 }
 
 #[derive(Debug)]
@@ -250,8 +250,8 @@ where
     pub fn run(&mut self, addr: &dyn Address) -> Result<()> {
         // translate the fall back block then call it.
         // Note that only the first block should be reside in a call, as it can be returned.
-        let (offset, code) = self.trans.translate(&mut self.mem, addr)?;
-        let entry_func: extern "C" fn() = unsafe { std::mem::transmute(code.ptr(*offset)) };
+        let code = self.trans.translate(&mut self.mem, addr)?;
+        let entry_func: extern "C" fn() = unsafe { std::mem::transmute(code) };
         entry_func();
         Ok(())
     }

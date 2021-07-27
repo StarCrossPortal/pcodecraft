@@ -30,7 +30,9 @@ pub trait Address {
             self.offset().partial_cmp(&other.offset())
         }
     }
-    fn debug_print(&self) -> String;
+    fn debug_print(&self) -> String {
+        format!("Address {{ space = {}, offset = {}}}", self.space(), self.offset())
+    }
 }
 
 impl<'a> PartialEq for &'a dyn Address {

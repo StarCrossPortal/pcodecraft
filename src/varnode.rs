@@ -18,7 +18,9 @@ pub trait Varnode {
     /// Varnode::getHigh()
     fn high_var(&self) -> Option<&dyn HighVariable>;
 
-    fn debug_print(&self) -> String;
+    fn debug_print(&self) -> String {
+        format!("Varnode {{addr = {:?}, size = {}, high_var = {:?}}}", self.addr(), self.size(), self.high_var())
+    }
 }
 
 impl<'a> std::fmt::Debug for &'a dyn Varnode {
