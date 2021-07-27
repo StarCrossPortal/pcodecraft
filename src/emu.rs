@@ -216,6 +216,8 @@ pub trait Memory: std::fmt::Debug {
 /// Emulator Memory
 /// `BlockTranslator` is responsible for translating a single block into executable pcode
 pub trait BlockTranslator<Mem: Memory>: std::fmt::Debug {
+    // TODO: this signature requires a whole page of mapping.
+    // which is not memory efficient. Change this.
     fn translate(
         &self,
         mem: &mut Mem,
