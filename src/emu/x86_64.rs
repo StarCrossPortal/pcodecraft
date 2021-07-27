@@ -11,11 +11,11 @@
 // limitations under the License.
 #![allow(unused_parens)]
 use super::{ArithPcodeTranslator, BlockTranslator, MemMappedMemory, Result};
-use crate::{Address, PcodeOp, Varnode, emu::{EmuError, Memory}};
+use crate::{Address, PcodeOp, SeqNum, Varnode, emu::{EmuError, Memory}};
 use dynasm::dynasm;
 use dynasmrt::{
     x64::{self, X64Relocation},
-    Assembler, AssemblyOffset, DynasmApi, ExecutableBuffer,
+    Assembler, AssemblyOffset, DynasmApi, ExecutableBuffer, DynasmLabelApi
 };
 use std::{
     borrow::Borrow,
@@ -26,29 +26,32 @@ use std::{
 macro_rules! init_reg_rcx {
     ($ops:expr, $mem:expr, $input_varnode:expr) => {
         let input_addr = $mem.translate_addr($input_varnode.addr())?;
+        dynasm!($ops
+            ; mov rdi, QWORD input_addr as _
+        );
         let size = $input_varnode.size();
         match size {
             1 => {
                 dynasm!($ops
                     ; xor rcx, rcx
-                    ; mov cl, BYTE [input_addr as _]
+                    ; mov cl, BYTE [rdi]
                 );
             }
             2 => {
                 dynasm!($ops
                     ; xor rcx, rcx
-                    ; mov cx, WORD [input_addr as _]
+                    ; mov cx, WORD [rdi]
                 );
             }
             4 => {
                 dynasm!($ops
                     ; xor rcx, rcx
-                    ; mov ecx, DWORD [input_addr as _]
+                    ; mov ecx, DWORD [rdi]
                 );
             }
             8 => {
                 dynasm!($ops
-                    ; mov rcx, QWORD [input_addr as _]
+                    ; mov rcx, QWORD [rdi]
                 );
             },
             _ => unreachable!()
@@ -59,26 +62,29 @@ macro_rules! init_reg_rcx {
 macro_rules! fini_reg_rax {
     ($ops:expr, $mem:expr, $input_varnode:expr) => {
         let out_addr = $mem.translate_addr($input_varnode.addr())?;
+        dynasm!($ops
+            ; mov rdi, QWORD out_addr as _
+        );
         let size = $input_varnode.size();
         match size {
             1 => {
                 dynasm!($ops
-                    ; mov BYTE [out_addr as _], al
+                    ; mov BYTE [rdi], al
                 );
             }
             2 => {
                 dynasm!($ops
-                    ; mov WORD [out_addr as _], ax
+                    ; mov WORD [rdi], ax
                 );
             }
             4 => {
                 dynasm!($ops
-                    ; mov DWORD [out_addr as _], eax
+                    ; mov DWORD [rdi], eax
                 );
             }
             8 => {
                 dynasm!($ops
-                    ; mov QWORD [out_addr as _], rax
+                    ; mov QWORD [rdi], rax
                 );
             },
             _ => unreachable!()
@@ -160,11 +166,11 @@ macro_rules! impl_jit_pcode {
             );
             for input in inputs {
                 if &input.addr().space() == "const" {
-                    let value = input.addr().offset();
+                    let value = input.addr().offset() as i64;
                     // many 1 operand operations don't support immediate
                     // e.g: mul, div..
                     dynasm!(ops
-                        ; mov $src_reg, value as _
+                        ; mov $src_reg, QWORD value
                         ; $op $src_reg
                     );
                 } else {
@@ -192,27 +198,30 @@ macro_rules! impl_float_jit_pcode {
         ) -> Result<()> {
             ensure_output!(out);
             let temp_base = mem.temp_base();
+            dynasm!(ops
+                ; mov rdi, QWORD temp_base as _
+            );
             for input in inputs {
                 if &input.addr().space() == "const" {
                     let value = input.addr().offset();
                     dynasm!(ops
-                        ; mov QWORD [temp_base as _], 0
-                        ; mov QWORD [temp_base as _], value as _
+                        ; mov QWORD [rdi], 0
+                        ; mov QWORD [rdi], value as _
                     );
                     $asm_block(ops, temp_base);
                 } else {
                     init_reg_rcx!(ops, mem, input);
                     dynasm!(ops
                         ; xor rax, rax
-                        ; mov QWORD [temp_base as _], 0
-                        ; mov QWORD [temp_base as _], rcx
+                        ; mov QWORD [rdi], 0
+                        ; mov QWORD [rdi], rcx
                     );
                     $asm_block(ops, temp_base);
                 }
             }
             dynasm!(ops
-                ; fstp QWORD [temp_base as _]
-                ; mov rax, QWORD [temp_base as _]
+                ; fstp QWORD [rdi]
+                ; mov rax, QWORD [rdi]
             );
             fini_reg_rax!(ops, mem, out);
             Ok(())
@@ -244,22 +253,26 @@ impl ArithPcodeTranslator for X64ArithJitPcodeTranslator {
         match out.size() {
             1 => {
                 dynasm!(ops
-                    ; mov al, BYTE [addr as _]
+                    ; mov rdi, QWORD addr as _
+                    ; mov al, BYTE [rdi]
                 );
             }
             2 => {
                 dynasm!(ops
-                    ; mov ax, WORD [addr as _]
+                    ; mov rdi, QWORD addr as _
+                    ; mov ax, WORD [rdi]
                 );
             }
             4 => {
                 dynasm!(ops
-                    ; mov eax, DWORD [addr as _]
+                    ; mov rdi, QWORD addr as _
+                    ; mov eax, DWORD [rdi]
                 );
             }
             8 => {
                 dynasm!(ops
-                    ; mov rax, QWORD [addr as _]
+                    ; mov rdi, QWORD addr as _
+                    ; mov rax, QWORD [rdi]
                 );
             }
             _ => unreachable!(),
@@ -286,22 +299,26 @@ impl ArithPcodeTranslator for X64ArithJitPcodeTranslator {
         match out.size() {
             1 => {
                 dynasm!(ops
-                    ; mov BYTE [addr as _], cl
+                    ; mov rdi, QWORD addr as _
+                    ; mov BYTE [rdi], cl
                 );
             }
             2 => {
                 dynasm!(ops
-                    ; mov WORD [addr as _], cx
+                    ; mov rdi, QWORD addr as _
+                    ; mov WORD [rdi], cx
                 );
             }
             4 => {
                 dynasm!(ops
-                    ; mov DWORD [addr as _], ecx
+                    ; mov rdi, QWORD addr as _
+                    ; mov DWORD [rdi], ecx
                 );
             }
             8 => {
                 dynasm!(ops
-                    ; mov QWORD [addr as _], rcx
+                    ; mov rdi, QWORD addr as _
+                    ; mov QWORD [rdi], rcx
                 );
             }
             _ => unreachable!(),
@@ -423,7 +440,7 @@ impl ArithPcodeTranslator for X64ArithJitPcodeTranslator {
     impl_jit_pcode!(int_rem[div rcx; mov rax, rdx]);
     impl_jit_pcode!(int_sdiv [idiv rcx]);
     impl_jit_pcode!(int_srem[idiv rcx; mov rax, rdx]);
-    impl_jit_pcode!(bool_negate [not al; and rax, 1]);
+    impl_jit_pcode!(bool_negate [not rax; and rax, 1]);
     impl_jit_pcode!(bool_xor [xor rax, rcx; and rax, 1]);
     impl_jit_pcode!(bool_and [and rax, rcx; and rax, 1]);
     impl_jit_pcode!(bool_or [or rax, rcx; and rax, 1]);
@@ -641,17 +658,19 @@ impl<'a, PcodeTrans: ArithPcodeTranslator> std::fmt::Debug
 impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMappedMemory>>
     PcodeCacheOnlyTranslator<'a, PcodeTrans>
 {
-
     pub fn new(pcode_trans: PcodeTrans) -> Self {
         Self {
             cache: BTreeMap::new(),
             block_cache: RefCell::new(HashMap::new()),
             user_defined: HashMap::new(),
-            pcode_trans
+            pcode_trans,
         }
     }
 
-    pub fn from_cache(cache: BTreeMap<(usize, usize), &'a dyn PcodeOp>, pcode_trans: PcodeTrans) -> Self {
+    pub fn from_cache(
+        cache: BTreeMap<(usize, usize), &'a dyn PcodeOp>,
+        pcode_trans: PcodeTrans,
+    ) -> Self {
         Self {
             cache,
             block_cache: RefCell::new(HashMap::default()),
@@ -668,8 +687,8 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
         self.user_defined.insert(id, func);
     }
 
-    pub fn add_pcode(&mut self, addr: usize, uniq: usize, pcode: &'a dyn PcodeOp) {
-        self.cache.insert((addr, uniq), pcode);
+    pub fn add_pcode(&mut self, seq: &dyn SeqNum, pcode: &'a dyn PcodeOp) {
+        self.cache.insert((seq.addr().offset() as usize, seq.uniq() as usize), pcode);
     }
 
     extern "C" fn jump_stub(&mut self, mem: &mut MemMappedMemory, target_addr: &dyn Address) {
@@ -692,17 +711,23 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
         ops: &mut Assembler<X64Relocation>,
     ) -> Result<()> {
         let addr = mem.translate_addr(pcode.inputs()[0].addr())?;
-        let cached = self.block_cache.borrow();
-        let target = match cached.get(&addr) {
-            Some((offset, code)) => code.ptr(*offset),
-            None => {
-                let (offset, code) = self.translate(mem, pcode.inputs()[0].addr())?;
-                code.borrow().ptr(offset.to_owned())
+        match self.block_cache.borrow().get(&addr) {
+            Some((offset, code)) => {
+                let target = code.ptr(*offset);
+                dynasm!(ops
+                    ; mov rax, QWORD target as _
+                    ; jmp rax
+                );
+                return Ok(());
             }
-        };
+            None => {}
+        }
 
+        let (offset, code) = self.translate(mem, pcode.inputs()[0].addr())?;
+        let target = code.borrow().ptr(offset.to_owned());
         dynasm!(ops
-            ; jmp target as _
+            ; mov rax, QWORD target as _
+            ; jmp rax
         );
         Ok(())
     }
@@ -728,7 +753,10 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
         dynasm!(ops
             ; mov al, BYTE [predicate as _]
             ; test al, al
-            ; jnz target as _
+            ; jz ->no_jmp
+            ; mov rbx, QWORD target as _
+            ; jmp rbx
+            ; ->no_jmp:
         );
         Ok(())
     }
@@ -748,10 +776,11 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
         let stub = Self::jump_stub as usize;
 
         dynasm!(ops
-            ; mov rdi, self_ptr as _
-            ; mov rsi, mem_ptr as _
-            ; mov rdx, addr as _
-            ; jmp stub as _
+            ; mov rdi, QWORD self_ptr as _
+            ; mov rsi, QWORD mem_ptr as _
+            ; mov rdx, QWORD addr as _
+            ; mov rax, QWORD stub as _
+            ; jmp rax
         );
         Ok(())
     }
@@ -773,7 +802,8 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
         };
 
         dynasm!(ops
-            ; call target as _
+            ; mov rax, QWORD target as _
+            ; call rax
         );
         Ok(())
     }
@@ -793,10 +823,11 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
         let stub = Self::jump_stub as usize;
 
         dynasm!(ops
-            ; mov rdi, self_ptr as _
-            ; mov rsi, mem_ptr as _
-            ; mov rdx, addr as _
-            ; call stub as _
+            ; mov rdi, QWORD self_ptr as _
+            ; mov rsi, QWORD mem_ptr as _
+            ; mov rdx, QWORD addr as _
+            ; mov rax, QWORD stub as _
+            ; call rax
         );
         Ok(())
     }
@@ -817,9 +848,10 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
                 userop_id
             )))?) as *const _ as usize;
         dynasm!(ops
-            ; mov rdi, userop_id as _
-            ; mov rsi, params as _
-            ; call func as _
+            ; mov rdi, QWORD userop_id as _
+            ; mov rsi, QWORD params as _
+            ; mov rax, QWORD func as _
+            ; call rax
         );
         Ok(())
     }
@@ -845,8 +877,10 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
         mem: &mut MemMappedMemory,
         addr: &dyn Address,
     ) -> Result<(Ref<AssemblyOffset>, Ref<ExecutableBuffer>)> {
-        dbg!(addr);
-        let cache_op_iter = self.cache.iter().skip_while(|c| (*c.0).0 != addr.offset() as usize);
+        let cache_op_iter = self
+            .cache
+            .iter()
+            .skip_while(|c| (*c.0).0 != addr.offset() as usize);
 
         let mut ops = x64::Assembler::new().unwrap();
 
@@ -857,8 +891,6 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
 
         for (_, pcode) in cache_op_iter {
             use crate::OpCode::*;
-
-            dbg!(pcode);
 
             match self.pcode_trans.translate_pcode(&mut ops, mem, *pcode) {
                 Ok(_) => {}
@@ -898,7 +930,9 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
             .borrow_mut()
             .insert(translated_addr, (offset, block_result));
 
-        let res = Ref::map(self.block_cache.borrow(), |cache| cache.get(&translated_addr).unwrap());
+        let res = Ref::map(self.block_cache.borrow(), |block_cache| {
+            block_cache.get(&translated_addr).unwrap()
+        });
 
         let offset = Ref::map(Ref::clone(&res), |res| &res.0);
         let code = Ref::map(res, |res| &res.1);
@@ -907,20 +941,19 @@ impl<'a, PcodeTrans: ArithPcodeTranslator<Reloc = X64Relocation, Mem = MemMapped
     }
 }
 
-
 #[test]
-fn test_single_block_basic() {
+fn test_single_block() {
     use crate::backend::plain::*;
+    use crate::emu::Emulator;
     use crate::plain_pcode;
     use crate::OpCode::*;
-    use crate::emu::Emulator;
 
     let insns = vec![
         plain_pcode!(0x1000:0| ("register", 0, 8) = [Copy] ("const", 8, 8)),
         plain_pcode!(0x1001:0| ("register", 0x8, 8) = [Copy] ("const", 8, 8)),
         plain_pcode!(0x1002:0| ("register", 0, 8) = [IntAdd] ("register", 0, 8) ("register", 8, 8)),
-        plain_pcode!(0x1003:0| [Return])
-    ]; 
+        plain_pcode!(0x1003:0| [Return]),
+    ];
 
     let mut mem = MemMappedMemory::new().unwrap();
     mem.insert_space(0, "register".to_string()).unwrap();
@@ -928,19 +961,69 @@ fn test_single_block_basic() {
 
     let mut block_trans = PcodeCacheOnlyTranslator::new(X64ArithJitPcodeTranslator::default());
 
-    block_trans.add_pcode(0x1000, 0, &insns[0]);
-    block_trans.add_pcode(0x1001, 0, &insns[1]);
-    block_trans.add_pcode(0x1002, 0, &insns[2]);
+    for ins in insns.iter() {
+        block_trans.add_pcode(ins.seq(), ins);
+    }
 
     let mut emu = Emulator::new(block_trans, mem);
 
     emu.run(&PlainAddress {
         space: "ram".to_string(),
-        offset: 0x1000
-    }).unwrap();
+        offset: 0x1000,
+    })
+    .unwrap();
 
-    assert_eq!(emu.mem.read_mem::<u64>(&PlainAddress {
-        space: "register".to_string(),
-        offset: 0x0
-    }).unwrap(), 8);
+    assert_eq!(
+        emu.mem
+            .read_mem::<u64>(&PlainAddress {
+                space: "register".to_string(),
+                offset: 0x0
+            })
+            .unwrap(),
+        0x10
+    );
+}
+
+#[test]
+fn test_two_blocks() {
+    use crate::backend::plain::*;
+    use crate::emu::Emulator;
+    use crate::plain_pcode;
+    use crate::OpCode::*;
+
+    let insns = vec![
+        plain_pcode!(0x1000:0| ("register", 0, 8) = [Copy] ("const", 8, 8)),
+        plain_pcode!(0x1001:0| ("register", 0x8, 8) = [Copy] ("const", 8, 8)),
+        plain_pcode!(0x1002:0| ("register", 0, 8) = [IntAdd] ("register", 0, 8) ("register", 8, 8)),
+        plain_pcode!(0x1010:0| [Branch] ("ram", 0x1011, 8)),
+        plain_pcode!(0x1011:0| [Return]),
+    ];
+
+    let mut mem = MemMappedMemory::new().unwrap();
+    mem.insert_space(0, "register".to_string()).unwrap();
+    mem.insert_space(1, "ram".to_string()).unwrap();
+
+    let mut block_trans = PcodeCacheOnlyTranslator::new(X64ArithJitPcodeTranslator::default());
+
+    for ins in insns.iter() {
+        block_trans.add_pcode(ins.seq(), ins);
+    }
+
+    let mut emu = Emulator::new(block_trans, mem);
+
+    emu.run(&PlainAddress {
+        space: "ram".to_string(),
+        offset: 0x1000,
+    })
+    .unwrap();
+
+    assert_eq!(
+        emu.mem
+            .read_mem::<u64>(&PlainAddress {
+                space: "register".to_string(),
+                offset: 0x0
+            })
+            .unwrap(),
+        0x10
+    );
 }

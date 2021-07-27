@@ -227,7 +227,7 @@ macro_rules! plain_pcode {
             ),*]
         }
     };
-    ($addr:literal: $uniq:literal | [$opcode:path] $($in_space:literal, $in_offset:literal, $in_size:literal)*) => {
+    ($addr:literal: $uniq:literal | [$opcode:path] $(($in_space:literal, $in_offset:literal, $in_size:literal))*) => {
         PlainPcodeOp {
             opcode: $opcode,
             seq: PlainSeqNum {

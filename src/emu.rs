@@ -249,10 +249,8 @@ where
         // translate the fall back block then call it.
         // Note that only the first block should be reside in a call, as it can be returned.
         let (offset, code) = self.trans.translate(&mut self.mem, addr)?;
-        println!("start running...");
         let entry_func: extern "C" fn() = unsafe { std::mem::transmute(code.ptr(*offset)) };
         entry_func();
-        println!("running ends...");
         Ok(())
     }
 }
