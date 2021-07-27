@@ -14,4 +14,11 @@ use crate::Symbol;
 
 pub trait HighVariable {
     fn symbol(&self) -> Option<&dyn Symbol>;
+    fn debug_print(&self) -> String;
+}
+
+impl<'a> std::fmt::Debug for &'a HighVariable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.debug_print())
+    }
 }

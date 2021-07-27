@@ -1,6 +1,6 @@
-use std::{collections::HashMap, convert::TryInto, num::TryFromIntError};
+use std::{cell::Ref, collections::HashMap, convert::TryInto, num::TryFromIntError};
 
-use dynasmrt::{relocations::Relocation, Assembler};
+use dynasmrt::{relocations::Relocation, Assembler, AssemblyOffset, ExecutableBuffer};
 use memmap2::MmapMut;
 use thiserror::Error;
 
@@ -14,13 +14,13 @@ use crate::{Address, OpCode, PcodeOp, Varnode};
 macro_rules! def_op {
     ($opname:ident) => {
         fn $opname(
-            &mut self,
+            &self,
             _ops: &mut Assembler<Self::Reloc>,
             _mem: &mut Self::Mem,
             _inputs: &[&dyn Varnode],
             _out: Option<&dyn Varnode>,
         ) -> Result<()> {
-            todo!()
+            todo!("not implemented yet")
         }
     };
 }
@@ -88,7 +88,7 @@ pub trait ArithPcodeTranslator: std::fmt::Debug {
     def_op!(new_op);
 
     fn translate_pcode(
-        &mut self,
+        &self,
         ops: &mut Assembler<Self::Reloc>,
         mem: &mut Self::Mem,
         pcode: &dyn PcodeOp,
@@ -101,6 +101,7 @@ pub trait ArithPcodeTranslator: std::fmt::Debug {
         macro_rules! side_effect_free_op {
             ($method:ident) => {{
                 self.$method(ops, mem, &inputs, output)?;
+                Ok(())
             }};
         }
 
@@ -160,9 +161,8 @@ pub trait ArithPcodeTranslator: std::fmt::Debug {
             FloatTrunc => side_effect_free_op!(trunc),
             CPoolRef => side_effect_free_op!(cpoolref),
             New => side_effect_free_op!(new_op),
-            _ => todo!("other opcodes"),
+            _ => Err(EmuError::UnableToTranslate),
         }
-        todo!()
     }
 }
 
@@ -181,6 +181,8 @@ pub enum EmuError {
     OffsetTooLarge(#[from] TryFromIntError),
     #[error("Pcode invalid with reason: {0}")]
     InvalidPcode(String),
+    #[error("This pcode is not translatable by this translator")]
+    UnableToTranslate,
     #[error("IO error")]
     IoError(#[from] std::io::Error),
 }
@@ -196,12 +198,18 @@ pub trait Memory: std::fmt::Debug {
 
     /// Translate the pcode addr under specific space (with its id) into this memory's addressing
     fn trans_addr_under_space_id(&mut self, space_id: u64, offset: u64) -> Result<Self::MemAddr>;
+
+    fn read_mem<T: Copy>(&mut self, addr: &dyn Address) -> Result<T>;
 }
 
 /// Emulator Memory
 /// `BlockTranslator` is responsible for translating a single block into executable pcode
 pub trait BlockTranslator<Mem: Memory>: std::fmt::Debug {
-    fn translate(&mut self, mem: &mut Mem, addr: usize) -> Result<*const u8>;
+    fn translate(
+        &self,
+        mem: &mut Mem,
+        addr: &dyn Address,
+    ) -> Result<(Ref<AssemblyOffset>, Ref<ExecutableBuffer>)>;
 }
 
 #[derive(Debug)]
@@ -211,9 +219,9 @@ where
     Mem: Memory,
 {
     /// translator used to translate the blocks
-    trans: Trans,
+    pub trans: Trans,
     /// internal memory implementation
-    mem: Mem,
+    pub mem: Mem,
 }
 
 impl<Trans, Mem> Emulator<Trans, Mem>
@@ -226,12 +234,14 @@ where
     }
 
     /// Run until the end of the program
-    pub fn run(&mut self, entry: usize) -> Result<()> {
+    pub fn run(&mut self, addr: &dyn Address) -> Result<()> {
         // translate the fall back block then call it.
         // Note that only the first block should be reside in a call, as it can be returned.
-        let entry_block = self.trans.translate(&mut self.mem, entry)?;
-        let entry_func: extern "C" fn() = unsafe { std::mem::transmute(entry_block) };
+        let (offset, code) = self.trans.translate(&mut self.mem, addr)?;
+        println!("start running...");
+        let entry_func: extern "C" fn() = unsafe { std::mem::transmute(code.ptr(*offset)) };
         entry_func();
+        println!("running ends...");
         Ok(())
     }
 }
@@ -268,9 +278,7 @@ impl MemMappedMemory {
         self.regions
             .entry(name.clone())
             .or_insert(MmapMut::map_anon(default_size)?.make_exec()?.make_mut()?);
-        self.space_id_table
-            .entry(id)
-            .or_insert(name);
+        self.space_id_table.entry(id).or_insert(name);
         Ok(())
     }
 
@@ -278,7 +286,9 @@ impl MemMappedMemory {
         let offset: usize = offset.try_into()?;
         let default_size = (offset & (!0xfff)) + 0x2000;
 
-        let region = self.regions.get(space)
+        let region = self
+            .regions
+            .get(space)
             .ok_or(EmuError::UnknownAddressSpace(space.to_string()))?;
 
         if offset >= region.len() {
@@ -302,9 +312,18 @@ impl Memory for MemMappedMemory {
     }
 
     fn trans_addr_under_space_id(&mut self, space_id: u64, offset: u64) -> Result<Self::MemAddr> {
-        let space_name= self.space_id_table.get(&space_id)
+        let space_name = self
+            .space_id_table
+            .get(&space_id)
             .ok_or(EmuError::UnknownAddressSpaceId(space_id))?
             .to_string();
         self.translate_space_offset(space_name.as_ref(), offset)
+    }
+
+    fn read_mem<T: Copy>(&mut self, addr: &dyn Address) -> Result<T> {
+        let real_addr = self.translate_addr(addr)? as *const T;
+        unsafe {
+            Ok(*real_addr)
+        }
     }
 }

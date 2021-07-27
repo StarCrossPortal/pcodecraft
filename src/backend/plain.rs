@@ -27,7 +27,7 @@ impl Address for PlainAddress {
     }
 
     fn debug_print(&self) -> String {
-        todo!()
+        format!("Address {{ space = {}, offset = {}}}", self.space(), self.offset())
     }
 }
 
@@ -44,6 +44,10 @@ impl SeqNum for PlainSeqNum {
 
     fn addr(&self) -> &dyn Address {
         &self.addr
+    }
+
+    fn debug_print(&self) -> String {
+        format!("SeqNum {{ uniq = {}, addr = {:?}}}", self.uniq(), self.addr())
     }
 }
 
@@ -72,6 +76,10 @@ impl Symbol for PlainSymbol {
     fn map_entry(&self, i: usize) -> &dyn SymbolEntry {
         &self.map_entry[i]
     }
+
+    fn debug_print(&self) -> String {
+        format!("Symbol {{name = {}, map_entry = {:?}}}", self.name(), self.map_entry)
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -83,13 +91,17 @@ impl HighVariable for PlainHighVariable {
     fn symbol(&self) -> Option<&dyn Symbol> {
         self.symbol.as_ref().map(|x| x as &dyn Symbol)
     }
+
+    fn debug_print(&self) -> String {
+        format!("HighVar {{symbol = {:?}}}", self.symbol())
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PlainVarnode {
     pub addr: PlainAddress,
     pub size: u32,
-    pub high_var: PlainHighVariable
+    pub high_var: Option<PlainHighVariable>
 }
 
 impl Varnode for PlainVarnode {
@@ -101,12 +113,12 @@ impl Varnode for PlainVarnode {
         self.size
     }
 
-    fn high_var(&self) -> &dyn HighVariable {
-        &self.high_var
+    fn high_var(&self) -> Option<&dyn HighVariable> {
+        self.high_var.as_ref().map(|v| v as &dyn HighVariable)
     }
 
     fn debug_print(&self) -> String {
-        todo!()
+        format!("Varnode {{addr = {:?}, size = {}, high_var = {:?}}}", self.addr(), self.size(), self.high_var())
     }
 }
 
@@ -136,7 +148,7 @@ impl PcodeOp for PlainPcodeOp {
     }
 
     fn debug_print(&self) -> String {
-        todo!()
+        format!("PcodeOp {{ opcode = {:?}, seq = {:?}, inputs = {:?}, output = {:?}}}", self.opcode(), self.seq(), self.inputs(), self.output())
     }
 }
 
@@ -169,5 +181,62 @@ impl Cfg for PlainCfg {
 
     fn ins(&self, idx: usize) -> Vec<&dyn Block> {
         self.ins[idx].iter().map(|idx| &self.blocks[*idx] as &dyn Block).collect()
+    }
+}
+
+#[macro_export]
+macro_rules! plain_pcode {
+    ($addr:literal: $uniq:literal| ($out_space:literal, $out_offset:literal, $out_size:literal) = [$opcode:path] $(($in_space:literal, $in_offset:literal, $in_size:literal))+) => {
+        PlainPcodeOp {
+            opcode: $opcode,
+            seq: PlainSeqNum {
+                uniq: $uniq,
+                addr: PlainAddress {
+                    space: "ram".to_string(),
+                    offset: $addr
+                }
+            },
+            output: Some(PlainVarnode {
+                addr: PlainAddress {
+                    space: $out_space.to_string(),
+                    offset: $out_offset,
+                },
+                size: $out_size,
+                high_var: None
+            }),
+            inputs: vec![$(
+                PlainVarnode {
+                    addr: PlainAddress {
+                        space: $in_space.to_string(),
+                        offset: $in_offset
+                    },
+                    size: $in_size,
+                    high_var: None
+                }
+            ),*]
+        }
+    };
+    ($addr:literal: $uniq:literal | [$opcode:path] $($in_space:literal, $in_offset:literal, $in_size:literal)*) => {
+        PlainPcodeOp {
+            opcode: $opcode,
+            seq: PlainSeqNum {
+                uniq: $uniq,
+                addr: PlainAddress {
+                    space: "ram".to_string(),
+                    offset: $addr
+                }
+            },
+            output: None,
+            inputs: vec![$(
+                PlainVarnode {
+                    addr: PlainAddress {
+                        space: $in_space.to_string(),
+                        offset: $in_offset
+                    },
+                    size: $in_size,
+                    high_var: None
+                }
+            )*]
+        }
     }
 }

@@ -16,7 +16,7 @@ pub trait Varnode {
     fn addr(&self) -> &dyn Address;
     fn size(&self) -> u32;
     /// Varnode::getHigh()
-    fn high_var(&self) -> &dyn HighVariable;
+    fn high_var(&self) -> Option<&dyn HighVariable>;
 
     fn debug_print(&self) -> String;
 }

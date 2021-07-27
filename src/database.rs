@@ -13,6 +13,13 @@
 pub trait Symbol {
     fn name(&self) -> &str;
     fn map_entry(&self, i: usize) -> &dyn SymbolEntry;
+    fn debug_print(&self) -> String;
+}
+
+impl<'a> std::fmt::Debug for &'a Symbol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.debug_print())
+    }
 }
 
 pub trait SymbolEntry {

@@ -16,7 +16,7 @@ dynasmrt = { version = "1.1.0", optional = true }
 memmap2 = { version = "0.3.0", optional = true }
 
 [features]
-default = ["emu"]
+default = ["emu", "plain"]
 plain = ["serde"]
 emu = ["dynasm", "dynasmrt", "memmap2"]
 ghidra = ["cxx"]

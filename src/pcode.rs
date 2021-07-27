@@ -35,6 +35,8 @@ pub trait SeqNum {
             self.addr().partial_cmp(&other.addr())
         }
     }
+
+    fn debug_print(&self) -> String;
 }
 
 impl<'a> PartialEq for &'a dyn SeqNum {
@@ -48,6 +50,12 @@ impl<'a> Eq for &'a dyn SeqNum {}
 impl<'a> PartialOrd for &'a dyn SeqNum {
     fn partial_cmp(&self, other: &&dyn SeqNum) -> Option<Ordering> {
         self.partial_compare(*other)
+    }
+}
+
+impl<'a> std::fmt::Debug for &'a dyn SeqNum {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.debug_print())
     }
 }
 
