@@ -10,16 +10,27 @@
 // express or implied.  See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::{Address, HighVariable};
+use crate::{Address};
+#[cfg(feature = "vars")]
+use crate::HighVariable;
 
 pub trait Varnode {
     fn addr(&self) -> &dyn Address;
     fn size(&self) -> u32;
     /// Varnode::getHigh()
+    #[cfg(feature = "vars")]
     fn high_var(&self) -> Option<&dyn HighVariable>;
 
     fn debug_print(&self) -> String {
-        format!("Varnode {{addr = {:?}, size = {}, high_var = {:?}}}", self.addr(), self.size(), self.high_var())
+        #[cfg(feature = "vars")]
+        {
+            format!("Varnode {{addr = {:?}, size = {}, high_var = {:?}}}", self.addr(), self.size(), self.high_var())
+        }
+
+        #[cfg(not(feature = "vars"))]
+        {
+            format!("Varnode {{addr = {:?}, size = {}}}", self.addr(), self.size())
+        }
     }
 }
 

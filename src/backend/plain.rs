@@ -85,21 +85,24 @@ impl Symbol for PlainSymbol {
     }
 }
 
+#[cfg(feature = "vars")]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlainHighVariable {
     pub symbol: Option<PlainSymbol>
 }
 
+#[cfg(feature = "vars")]
 impl HighVariable for PlainHighVariable {
     fn symbol(&self) -> Option<&dyn Symbol> {
         self.symbol.as_ref().map(|x| x as &dyn Symbol)
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PlainVarnode {
     pub addr: PlainAddress,
     pub size: u32,
+    #[cfg(feature = "vars")]
     pub high_var: Option<PlainHighVariable>
 }
 
@@ -112,12 +115,13 @@ impl Varnode for PlainVarnode {
         self.size
     }
 
+    #[cfg(feature = "vars")]
     fn high_var(&self) -> Option<&dyn HighVariable> {
         self.high_var.as_ref().map(|v| v as &dyn HighVariable)
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PlainPcodeOp {
     pub opcode: OpCode,
     pub seq: PlainSeqNum,

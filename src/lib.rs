@@ -17,6 +17,7 @@ mod cfg;
 mod database;
 mod varnode;
 mod pcode;
+#[cfg(feature = "vars")]
 mod variable;
 mod block;
 
@@ -25,6 +26,7 @@ pub use cfg::*;
 pub use database::*;
 pub use varnode::*;
 pub use pcode::*;
+#[cfg(feature = "vars")]
 pub use variable::*;
 pub use block::*;
 

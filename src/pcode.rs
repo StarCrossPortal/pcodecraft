@@ -61,7 +61,7 @@ impl<'a> std::fmt::Debug for &'a dyn SeqNum {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "plain", derive(Serialize, Deserialize))]
 #[repr(u8)]
 pub enum OpCode {
