@@ -98,7 +98,7 @@ impl HighVariable for PlainHighVariable {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct PlainVarnode {
     pub addr: PlainAddress,
     pub size: u32,
@@ -121,7 +121,7 @@ impl Varnode for PlainVarnode {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct PlainPcodeOp {
     pub opcode: OpCode,
     pub seq: PlainSeqNum,
