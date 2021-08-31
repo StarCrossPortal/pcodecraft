@@ -18,6 +18,7 @@ mod database;
 mod varnode;
 mod pcode;
 mod variable;
+mod block;
 
 pub use addr::*;
 pub use cfg::*;
@@ -25,6 +26,7 @@ pub use database::*;
 pub use varnode::*;
 pub use pcode::*;
 pub use variable::*;
+pub use block::*;
 
 pub mod backend;
 #[cfg(feature = "emu")]

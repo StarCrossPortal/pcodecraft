@@ -12,7 +12,7 @@
 use crate::*;
 use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct PlainAddress {
     pub space: String,
     pub offset: u64,
@@ -38,7 +38,7 @@ impl Address for PlainAddress {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct PlainSeqNum {
     pub uniq: u8,
     pub addr: PlainAddress,
