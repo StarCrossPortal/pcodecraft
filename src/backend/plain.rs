@@ -12,7 +12,7 @@
 use crate::*;
 use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct PlainAddress {
     pub space: String,
     pub offset: u64,
@@ -38,7 +38,7 @@ impl Address for PlainAddress {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct PlainSeqNum {
     pub uniq: u8,
     pub addr: PlainAddress,
@@ -54,7 +54,7 @@ impl SeqNum for PlainSeqNum {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlainSymbolEntry {
     pub offset: u8
 }
@@ -65,7 +65,7 @@ impl SymbolEntry for PlainSymbolEntry {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlainSymbol {
     pub name: String,
     pub map_entry: Vec<PlainSymbolEntry>,
@@ -85,7 +85,7 @@ impl Symbol for PlainSymbol {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlainHighVariable {
     pub symbol: Option<PlainSymbol>
 }
@@ -96,7 +96,7 @@ impl HighVariable for PlainHighVariable {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlainVarnode {
     pub addr: PlainAddress,
     pub size: u32,
@@ -117,7 +117,7 @@ impl Varnode for PlainVarnode {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlainPcodeOp {
     pub opcode: OpCode,
     pub seq: PlainSeqNum,
@@ -143,7 +143,7 @@ impl PcodeOp for PlainPcodeOp {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PlainBlock {
     pub pcodes: Vec<PlainPcodeOp>
 }
